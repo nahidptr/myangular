@@ -46,4 +46,44 @@ describe("filter", function () {
   });
 
 
+
+  it('can parse filter chain expressions', function () {
+    register('upcase', function () {
+      return function (str) {
+        return str.toUpperCase();
+      };
+    });
+    register('exclamate', function () {
+      return function (str) {
+        return str + '!';
+      };
+    });
+
+    var fn = parse('"hello" | upcase | exclamate');
+    expect(fn()).toEqual('HELLO!');
+  });
+
+  it('can pass an additional argument to filters', function () {
+    register('repeat', function () {
+      return function (s, times) {
+        return _.repeat(s, times);
+      };
+    });
+
+    var fn = parse('"hello" | repeat:3');
+    expect(fn()).toEqual('hellohellohello');
+  });
+
+  it('can pass several additional argument to filters', function () {
+    register('surrond', function () {
+      return function (s, left, right) {
+        return left + s + right;
+      };
+    });
+
+    var fn = parse('"hello" | surrond:"*":"!"');
+    expect(fn()).toEqual('*hello!');
+  });
+
+
 });
