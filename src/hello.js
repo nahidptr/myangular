@@ -29,4 +29,4 @@ var x = {
   "type": "CallExpression",
   "callee": {"type": "Identifier", "name": "aFunction"},
   "args": {"type": "Identifier", "name": "n"}
-}
+};

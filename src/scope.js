@@ -1,4 +1,5 @@
 /* jshint globalstrict: true */
+/* global parse: false */
 /*jshint esversion: 6 */
 
 "use strict";
@@ -28,13 +29,19 @@ Scope.prototype.$$areEqual = function (newValue, oldValue, valueEq) {
 
 Scope.prototype.$watch = function (watchFn, listenerFn, valueEq) {
   var self = this;
+
+  watchFn = parse(watchFn);
+  if(watchFn.$$watchDelegate) {
+    return watchFn.$$watchDelegate(self, listenerFn, valueEq, watchFn);
+  }
+
   var watcher = {
     watchFn: watchFn,
-    listenerFn: listenerFn || function () {
-    },
+    listenerFn: listenerFn || function () {},
     valueEq: !!valueEq,
     last: initWatchVal
   };
+
   this.$$watchers.unshift(watcher);
   this.$root.$$lastDirtyWatch = null;
 
@@ -58,36 +65,36 @@ Scope.prototype.$$everyScope = function (fn) {
 };
 
 Scope.prototype.$$digestOnce = function () {
-  var self = this;
-  //var newValue, oldValue;
+
   var dirty;//= false;
 
   var continueLoop = true;
-  this.$$everyScope(function (scope) {
-    var newValue, oldValue;
-    _.forEachRight(scope.$$watchers, function (watcher) {
-      try {
-        if(watcher) {
-          newValue = watcher.watchFn(scope);
-          oldValue = watcher.last;
-          if (!scope.$$areEqual(newValue, oldValue, watcher.valueEq)) {
-            scope.$root.$$lastDirtyWatch = watcher;
-            watcher.last = (watcher.valueEq ? _.cloneDeep(newValue) : newValue);
-            watcher.listenerFn(newValue, (oldValue === initWatchVal ? newValue : oldValue), scope);
-            dirty = true;
-          } else if (scope.$root.$$lastDirtyWatch === watcher) {
-            continueLoop = false;
-            return false;
+  this.$$everyScope(
+    function (scope) {
+      var newValue, oldValue;
+      _.forEachRight(scope.$$watchers, function (watcher) {
+        try {
+          if(watcher) {
+            newValue = watcher.watchFn(scope);
+            oldValue = watcher.last;
+            if (!scope.$$areEqual(newValue, oldValue, watcher.valueEq)) {
+              scope.$root.$$lastDirtyWatch = watcher;
+              watcher.last = (watcher.valueEq ? _.cloneDeep(newValue) : newValue);
+              watcher.listenerFn(newValue, (oldValue === initWatchVal ? newValue : oldValue), scope);
+              dirty = true;
+            } else if (scope.$root.$$lastDirtyWatch === watcher) {
+              continueLoop = false;
+              return false;
+            }
           }
         }
-      }
-      catch (e) {
-        console.error(e);
-      }
-    });
-    return continueLoop;
+        catch (e) {
+          console.error(e);
+        }
+      });
+      return continueLoop;
 
-  });
+    });
 
   return dirty;
 };
@@ -133,15 +140,14 @@ Scope.prototype.$digest = function () {
   }
 };
 
-Scope.prototype.$eval = function (fn, arg) {
-  var self = this;
-  return fn(self, arg);
+Scope.prototype.$eval = function (expr, locals) {
+  return parse(expr)(this, locals);
 };
 
 Scope.prototype.$apply = function (expr) {
   try {
     this.$beginPhase('$apply');
-    this.$eval(expr);
+    return this.$eval(expr);
   } finally {
     this.$clearPhase();
     this.$root.$digest();
@@ -305,6 +311,8 @@ Scope.prototype.$watchCollection = function (watchFn, listenerFn) {
   var veryOldValue;
   var trackVeryOldValue = (listenerFn.length > 1);
   var firstRun = true;
+
+  watchFn = parse(watchFn);
 
   var internalWatchFn = function (scope) {
     var newLength;
