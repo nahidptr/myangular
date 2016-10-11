@@ -343,7 +343,7 @@ describe('injector', function () {
 
     var module = angular.module('myModule', []);
     module.provider('a', {
-      $get: function (b) {
+      $get: function () {
         throw 'Failing instantiation!';
       }
     });
@@ -386,10 +386,12 @@ describe('injector', function () {
     expect(injector.get('a')).toBe(3);
   });
 
-  it('mine dependencies must be provided b4 hand, or else it would not work', function () {
+  it('mine dependencies must be provided b4 hand for ctor providers, or else it would not work', function () {
     //! mine with ctor function lazy instantiation, doesn't work
     var module = angular.module('myModule', []);
     module.provider('b', function AProvider(a) {
+      //! added new.
+      //! invoke called, try to get arg (a), calls getService to fetch token a, which calls providerInjector factory which throws
       this.$get = function () {
         return a + 2
       };
@@ -397,13 +399,127 @@ describe('injector', function () {
 
     module.provider('a', { $get: _.constant(1)});
 
-    var injector = createInjector(['myModule']);
-    expect( injector.get('b')).toEqual(NaN);
+    expect(function() { createInjector(['myModule']);}).toThrow();
+    //var injector = createInjector(['myModule']);
+    //expect(function() {injector.get('b');}).toThrow();
 
   });
 
+  // Two injectors
+  it('injects another provider to a provider constructor function', function () {
 
+    var module = angular.module('myModule', []);
+    module.provider('a', function AProvider() {
+      //! $provide method itself, provider is CTOR, it will registered in providerCache even b4 createInjector is called
+      var value = 1;
+      this.setValue = function(v) { value = v};
+      this.$get = function () { return value; };
+    });
 
+    module.provider('b', function BProvider(aProvider) {
+      //! aProvider token will found in invoke method, calls getService which gets from cache (providerCache)
+      aProvider.setValue(2);
+      this.$get = function () { };
+    });
+
+    var injector = createInjector(['myModule']);
+    expect(injector.get('a')).toBe(2);
+
+  });
+
+  it('does not inject an instance to a provider constructor function', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', function AProvider() {
+      this.$get = function () { return 1; };
+    });
+
+    module.provider('b', function BProvider(a) {
+      //! to get "a" it will instantiate, which call invoke, getService, which calls providerInjector factory which throws
+      this.$get = function () { return a; };
+    });
+
+    expect(function() { createInjector(['myModule']);}).toThrow();
+
+  });
+
+  it('does not inject an provider to a $get function', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', function AProvider() {
+      this.$get = function () { return 1; };
+    });
+
+    module.provider('b', function BProvider() {
+      this.$get = function (aProvider) { return aProvider.$get(); };
+    });
+
+    var injector = createInjector(['myModule']);
+    //! while getting dependency 'aProvider' inside invoke function getService is called, which try to resolve aProvider
+    //! which calls instance injector factory function, which called get of provider injector with name aProviderProvider, which throws
+    expect(function() { injector.get('b'); }).toThrow();
+
+  });
+
+  it('does not inject an provider to a invoke', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', function AProvider() {
+      this.$get = function () { return 1; };
+    });
+
+    var injector = createInjector(['myModule']);
+
+    //! aProviderProvider which is not found
+    expect(function() { injector.invoke( function(aProvider) {} ); }).toThrow();
+
+  });
+
+  it('does not give access to providers through get', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', function AProvider() {
+      this.$get = function () { return 1; };
+    });
+
+    var injector = createInjector(['myModule']);
+
+    //! aProviderProvider which is not found
+    expect(function() { injector.get('aProvider'); }).toThrow();
+
+  });
+
+  it('does not give access to providers through get part 2 mine', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', {
+      $get: function () { return 1; }
+    });
+
+    var injector = createInjector(['myModule']);
+
+    //! aProviderProvider which is not found
+    expect(function() { injector.get('aProvider'); }).toThrow();
+
+  });
+
+  // UnShifting constants in the Invoke Queue
+
+  it('register constants first to make them available to providers', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', function AProvider(b) {
+      this.$get = function () { return b; };
+    });
+
+    module.constant('b', 42);
+
+    var injector = createInjector(['myModule']);
+
+    //! aProviderProvider which is not found
+    expect(injector.get('a')).toBe(42);
+
+  });
 
 });
 
