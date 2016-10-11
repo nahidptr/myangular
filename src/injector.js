@@ -6,9 +6,12 @@ function createInjector(modulesToLoad, strictDi) {
   var FN_ARGS = /^function\s*[^\(]*\(\s*([^\)]*)\)/m;
   var FN_ARG = /^\s*(_?)(\S+?)\1\s*$/;
   var STRIP_COMMENTS = /(\/\/.*$)|(\/\*.*?\*\/)/mg;
+  var INSTANTIATING = {};
 
-  var cache = {};
+  var instanceCache = {};
+  var providerCache = {};
   var loadedModules = {};
+  var path = [];
   strictDi = (strictDi === true);
 
   var $provide = {
@@ -16,14 +19,48 @@ function createInjector(modulesToLoad, strictDi) {
       if (key === 'hasOwnProperty') {
         throw 'hasOwnProperty is not a valid constant name!';
       }
-      cache[key] = value;
+      instanceCache[key] = value;
+    },
+    provider: function (key, provider) {
+      if(_.isFunction(provider)) {
+        //! for ctor fn, dependencies must be resolved b4 hand
+        //! since instantiate calls invoke, which calls getService and it won't have the current provider dependencies in cache,
+        //! since its called for the 1st time without storing data in provider cache
+        provider = instantiate(provider);
+      }
+      providerCache[key + 'Provider'] = provider;
     }
   };
+
+  function getService(name) {
+    if(instanceCache.hasOwnProperty(name)) {
+      if(instanceCache[name] === INSTANTIATING) {
+        throw 'Circular dependency found: ' + name + ' <- ' + path.join(' <- ');
+      }
+      return instanceCache[name];
+    } else if(providerCache.hasOwnProperty(name + 'Provider')) {
+      instanceCache[name] = INSTANTIATING;
+      path.unshift(name);
+      try {
+        var provider = providerCache[name + 'Provider'];
+        var instance = instanceCache[name] = invoke(provider.$get, provider);
+        return instance;
+      } finally  {
+        path.shift();
+        //! finally is always called even if instanceCache is valid for that key
+        //! but the if block prevents it from being deleted.
+        if(instanceCache[name] === INSTANTIATING) {
+          delete instanceCache[name];
+        }
+      }
+
+    }
+  }
 
   function invoke(fn, self, locals) {
     var args =  _.map(annotate(fn), token => {
       if (_.isString(token)) {
-        return locals && locals.hasOwnProperty(token) ? locals[token] : cache[token];
+        return locals && locals.hasOwnProperty(token) ? locals[token] : getService(token);
       } else {
         throw 'Incorrect injection token! Expected a string, got ';
       }
@@ -74,11 +111,9 @@ function createInjector(modulesToLoad, strictDi) {
 
   return {
     has: function (key) {
-      return cache.hasOwnProperty(key);
+      return instanceCache.hasOwnProperty(key) || providerCache.hasOwnProperty(key + 'Provider');
     },
-    get: function (key) {
-      return cache[key];
-    },
+    get: getService,
     invoke: invoke,
     annotate: annotate,
     instantiate: instantiate

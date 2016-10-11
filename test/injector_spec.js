@@ -263,9 +263,146 @@ describe('injector', function () {
     }
 
     var instance = injector.instantiate(Type, {b: 3});
-
     expect(instance.result).toBe(4);
+
   });
+
+
+  // Chapter 11 Providers
+
+  it('allows registering a provider and uses its $get', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', {
+      $get: function () {
+        return 42;
+      }
+    });
+
+    var injector = createInjector(['myModule']);
+    expect(injector.has('a')).toBe(true);
+    expect(injector.get('a')).toBe(42);
+
+  });
+
+  it('injects the $get method of a provider', function () {
+
+    var module = angular.module('myModule', []);
+    module.constant('a', 1);
+    module.provider('b', {
+      $get: function (a) {
+        return a + 2
+      }
+    });
+
+    var injector = createInjector(['myModule']);
+    expect(injector.get('b')).toBe(3);
+
+  });
+
+  it('injects the $get method of a provider lazily', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('b', {
+      $get: function (a) {
+        return a + 2
+      }
+    });
+    module.provider('a', { $get: _.constant(1)});
+
+    var injector = createInjector(['myModule']);
+    expect(injector.get('b')).toBe(3);
+
+  });
+
+  it('instantiates a dependency only once', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', { $get: function(){ return {}; } });
+
+    var injector = createInjector(['myModule']);
+    expect(injector.get('a')).toBe(injector.get('a'));
+
+  });
+
+  it('notifies the user about a circular dependency', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', { $get: function(b) {} });
+    module.provider('b', { $get: function(c) {} });
+    module.provider('c', { $get: function(a) {} });
+
+    var injector = createInjector(['myModule']);
+    expect(function () {
+      injector.get('a');
+    }).toThrow('Circular dependency found: a <- c <- b <- a');
+
+  });
+
+  it('cleans up the circular marker when instantiation fails', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', {
+      $get: function (b) {
+        throw 'Failing instantiation!';
+      }
+    });
+
+    var injector = createInjector(['myModule']);
+    expect(function () {
+      injector.get('a');
+    }).toThrow('Failing instantiation!');
+
+    expect(function () {
+      injector.get('a');
+    }).toThrow('Failing instantiation!');
+
+  });
+
+  it('instantiate a provider if given as constructor function', function () {
+
+    var module = angular.module('myModule', []);
+    module.provider('a', function AProvider() {
+      this.$get = function () {
+        return 42;
+      };
+    });
+
+    var injector = createInjector(['myModule']);
+    expect(injector.get('a')).toBe(42);
+  });
+
+  it('injects the given provider constructor function', function () {
+
+    var module = angular.module('myModule', []);
+    module.constant('b', 2);
+    module.provider('a', function AProvider(b) {
+      this.$get = function () {
+        return 1 + b;
+      };
+    });
+
+    var injector = createInjector(['myModule']);
+    expect(injector.get('a')).toBe(3);
+  });
+
+  it('mine dependencies must be provided b4 hand, or else it would not work', function () {
+    //! mine with ctor function lazy instantiation, doesn't work
+    var module = angular.module('myModule', []);
+    module.provider('b', function AProvider(a) {
+      this.$get = function () {
+        return a + 2
+      };
+    });
+
+    module.provider('a', { $get: _.constant(1)});
+
+    var injector = createInjector(['myModule']);
+    expect( injector.get('b')).toEqual(NaN);
+
+  });
+
+
 
 
 });

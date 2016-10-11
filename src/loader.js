@@ -6,6 +6,18 @@ function setupModuleLoader(window) {
 
   var angular = ensure(window, 'angular', Object);
 
+  ensure(angular, 'module', function () {
+    var modules = {};
+    return function (name, requires) {
+      if(requires) {
+        return createModule(name, requires, modules);
+      } else {
+        return getModule(name, modules);
+      }
+    };
+  });
+
+
   var createModule = function (name, requires, modules) {
 
     if(name === 'hasOwnProperty') {
@@ -13,12 +25,19 @@ function setupModuleLoader(window) {
     }
 
     var invokeQueue = [];
+
+    var invokeLater = function (method) {
+      return function () {
+        invokeQueue.push([method, arguments]);
+        return moduleInstance;
+      };
+    };
+
     var moduleInstance = {
       name: name,
       requires: requires,
-      constant: function (key, value) {
-        invokeQueue.push(['constant', [key, value]]);
-      },
+      constant: invokeLater('constant'),
+      provider: invokeLater('provider'),
       _invokeQueue: invokeQueue
     };
     modules[name] = moduleInstance;
@@ -33,14 +52,4 @@ function setupModuleLoader(window) {
     }
   };
 
-  ensure(angular, 'module', function () {
-    var modules = {};
-    return function (name, requires) {
-      if(requires) {
-        return createModule(name, requires, modules);
-      } else {
-        return getModule(name, modules);
-      }
-    };
-  });
 }
