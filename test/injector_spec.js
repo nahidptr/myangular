@@ -362,7 +362,4 @@ describe('annotate', function () {
 
   });
 
-
-
-
 });
