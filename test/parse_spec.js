@@ -4,6 +4,13 @@
 
 describe("parse", function () {
 
+  var parse;
+
+  beforeEach(function () {
+    publishExternalAPI();
+    parse = createInjector(['ng']).get('$parse');
+  });
+
   it("can parse an integer", function () {
     var fn = parse('42');
     expect(fn).toBeDefined();
@@ -848,9 +855,12 @@ describe("parse", function () {
   });
 
   it('marks filters constant if arguments are', function () {
-    register('aFilter', function () {
-      return _.identity;
-    });
+
+    var parse = createInjector(['ng', function ($filterProvider) {
+      $filterProvider.register('aFilter', function () {
+        return _.identity;
+      });
+    }]).get('$parse');
 
     expect(parse('[1, 2, 3] | aFilter').constant).toBe(true);
     expect(parse('[1, 2, a] | aFilter').constant).toBe(false);

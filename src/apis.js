@@ -15,12 +15,9 @@ function hashKey(value) {
   }
 
   return type + ':' + uid;
-
 }
 
-function HashMap() {
-
-}
+function HashMap() {}
 
 HashMap.prototype = {
   put: function (key, value) {

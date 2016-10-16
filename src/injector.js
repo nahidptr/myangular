@@ -2,7 +2,7 @@
 
 function createInjector(modulesToLoad, strictDi) {
 
-  var  providerCache = {};
+  var providerCache = {};
   var providerInjector = providerCache.$injector =
     createInternalInjector(providerCache, function providerFactoryWhichThrows() {
     throw 'Unknown provider: ' + path.join(' <- ');
@@ -170,7 +170,6 @@ function createInjector(modulesToLoad, strictDi) {
         runBlocks.push(providerInjector.invoke(module));
       }
     }
-
   });
 
   _.forEach(_.compact(runBlocks), function (runBlock) {

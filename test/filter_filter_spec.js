@@ -5,8 +5,15 @@
 
 describe("filter filter", function () {
 
+  var parse;
+  beforeEach(function () {
+    publishExternalAPI();
+    parse = createInjector(['ng']).get('$parse');
+  });
+
   it('is available', function () {
-    expect(filter('filter')).toBeDefined();
+    var injector = createInjector(['ng']);
+    expect(injector.has('filterFilter')).toBe(true);
   });
 
   it('can filter an array with a predicate function', function () {
@@ -332,7 +339,5 @@ describe("filter filter", function () {
 
     expect(fn(scope)).toEqual(['Jo']);
   });
-
-
 
 });

@@ -788,6 +788,7 @@ describe('injector', function () {
 
     var injector = createInjector(['myModule']);
 
+    //! stores the result of aProvider in instanceCache after 1st run
     expect(injector.get('a')).toBe(injector.get('a'));
 
   });

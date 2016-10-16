@@ -77,5 +77,3 @@ function filterFilter() {
     return _.filter(arr, predicateFn);
   }
 }
-
-register('filter', filterFilter);
