@@ -21,7 +21,6 @@ function createInjector(modulesToLoad, strictDi) {
   var STRIP_COMMENTS = /(\/\/.*$)|(\/\*.*?\*\/)/mg;
   var INSTANTIATING = {};
 
-  var loadedModules = new HashMap();
   var path = [];
   strictDi = (strictDi === true);
 
@@ -116,8 +115,7 @@ function createInjector(modulesToLoad, strictDi) {
     function invoke(fn, self, locals) {
       var args =  annotate(fn).map(token => {
         if (_.isString(token)) {
-          return locals && locals.hasOwnProperty(token) ?
-            locals[token] : getService(token);
+          return locals && locals.hasOwnProperty(token) ? locals[token] : getService(token);
         } else {
           throw 'Incorrect injection token! Expected a string, got ' + token;
         }
@@ -155,6 +153,8 @@ function createInjector(modulesToLoad, strictDi) {
     });
   }
 
+  var loadedModules = new HashMap();
+
   var runBlocks = [];
   _.forEach(modulesToLoad, function loadModule(module) {
 
@@ -165,9 +165,9 @@ function createInjector(modulesToLoad, strictDi) {
         _.forEach(module.requires, loadModule);
         runInvokeQueue(module._invokeQueue);
         runInvokeQueue(module._configBlocks);
-        runBlocks= runBlocks.concat(module._runBlocks);
+        runBlocks = runBlocks.concat(module._runBlocks);
       } else if(_.isFunction(module) || _.isArray(module)) {
-        runBlocks.push(providerInjector.invoke(module));
+        runBlocks.push(providerInjector.invoke(module));  //! return value from Function Module can be run blocks
       }
     }
   });
