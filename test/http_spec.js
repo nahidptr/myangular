@@ -2,7 +2,7 @@
 
 describe('$http', function () {
 
-  var $http, $rootScope;
+  var $http, $rootScope, $q;
   var xhr, requests;
   var globalURL = 'http://teropa.info';
 
@@ -11,6 +11,7 @@ describe('$http', function () {
     var injector = createInjector(['ng']);
     $http = injector.get('$http');
     $rootScope = injector.get('$rootScope');
+    $q = injector.get('$q');
   });
 
   beforeEach(function () {
@@ -1312,6 +1313,166 @@ describe('$http', function () {
     requests[0].respond(200, {}, 'Hello');
 
     expect(responseErrorSpy).toHaveBeenCalledWith('fail');
+
+  });
+
+  //! Promise Extensions
+
+  it('allows attaching success handlers', function () {
+
+    var data, status, headers, config;
+    $http.get(globalURL).success(function (d, s, h, c) {
+      data = d;
+      status = s;
+      headers = h;
+      config = c;
+    });
+
+    $rootScope.$apply();
+
+    requests[0].respond(200, {'Cache-Control': 'no-cache'}, 'Hello');
+    $rootScope.$apply();
+
+    expect(data).toBe('Hello');
+    expect(status).toBe(200);
+    expect(headers('Cache-Control')).toBe('no-cache');
+    expect(config.method).toBe('GET');
+
+  });
+
+  it('allows attaching error handlers', function () {
+
+    var data, status, headers, config;
+    $http.get(globalURL).error(function (d, s, h, c) {
+      data = d;
+      status = s;
+      headers = h;
+      config = c;
+    });
+
+    $rootScope.$apply();
+
+    requests[0].respond(401, {'Cache-Control': 'no-cache'}, 'Fail');
+    $rootScope.$apply();
+
+    expect(data).toBe('Fail');
+    expect(status).toBe(401);
+    expect(headers('Cache-Control')).toBe('no-cache');
+    expect(config.method).toBe('GET');
+
+  });
+
+  // Timeouts
+
+  beforeEach(function () {
+    jasmine.clock().install();
+  });
+
+  afterEach(function () {
+    jasmine.clock().uninstall();
+  });
+
+
+  it('allows aborting a request with a Promise', function () {
+
+    var timeout = $q.defer();
+    $http.get(globalURL, {
+      timeout: timeout.promise
+    });
+
+    $rootScope.$apply();
+
+    timeout.resolve();
+    $rootScope.$apply();
+
+    expect(requests[0].aborted).toBe(true);
+
+  });
+
+  it('allows aborting a request after a tiemout', function () {
+
+    $http.get(globalURL, {
+      timeout: 5000
+    });
+
+    $rootScope.$apply();
+
+    jasmine.clock().tick(5001);
+
+    expect(requests[0].aborted).toBe(true);
+
+  });
+
+  describe('pending requests', function () {
+
+    it('are in the collection while pending', function () {
+
+      $http.get(globalURL);
+      $rootScope.$apply();
+
+      expect($http.pendingRequests).toBeDefined();
+      expect($http.pendingRequests.length).toBe(1);
+      expect($http.pendingRequests[0].url).toBe(globalURL);
+
+      requests[0].respond(200, {}, 'OK');
+      $rootScope.$apply();
+
+      expect($http.pendingRequests.length).toBe(0);
+
+    });
+
+    it('are also cleared on failure', function () {
+
+      $http.get(globalURL);
+      $rootScope.$apply();
+
+      requests[0].respond(404, {}, 'Not found');
+      $rootScope.$apply();
+
+      expect($http.pendingRequests.length).toBe(0);
+
+    });
+
+  });
+
+  describe('useApplyAsync', function () {
+
+    beforeEach(function () {
+
+      var injector = createInjector(['ng', function ($httpProvider) {
+        $httpProvider.useApplyAsync(true);
+      }]);
+      $http = injector.get('$http');
+      $rootScope = injector.get('$rootScope');
+
+    });
+
+    it('does not resolve promise immediately when enabled', function () {
+
+      var resolvedSpy = jasmine.createSpy();
+
+      $http.get(globalURL).then(resolvedSpy);
+      $rootScope.$apply();
+
+      requests[0].respond(200, {}, 'OK');
+
+      expect(resolvedSpy).not.toHaveBeenCalled();
+
+    });
+
+    it('resolves promise later when enabled', function () {
+
+      var resolvedSpy = jasmine.createSpy();
+
+      $http.get(globalURL).then(resolvedSpy);
+      $rootScope.$apply();
+
+      requests[0].respond(200, {}, 'OK');
+      jasmine.clock().tick(100);
+
+      expect(resolvedSpy).toHaveBeenCalled();
+
+    });
 
   });
 
