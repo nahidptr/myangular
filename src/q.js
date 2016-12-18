@@ -21,7 +21,7 @@ function qFactory(callLater) {
 
     pending.forEach((handlers) => {
       var deferred = handlers[0];
-      var fn = handlers[state.status];
+      var fn = handlers[state.status];  //! state.status is 0 or 1
       try {
         if (_.isFunction(fn)) {
 

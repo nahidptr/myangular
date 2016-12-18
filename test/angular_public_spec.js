@@ -67,4 +67,13 @@ describe('angularPublic', function () {
 
   });
 
+  // Controller
+  it('sets up $controller', function () {
+
+    publishExternalAPI();
+    var injector = createInjector(['ng']);
+    expect(injector.has('$controller')).toBe(true);
+
+  });
+
 });

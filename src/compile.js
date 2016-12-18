@@ -90,7 +90,7 @@ function $CompileProvider($provide) {
   };
 
 
-  this.$get = function ($injector, $rootScope, $parse) {
+  this.$get = function ($injector, $rootScope, $parse, $controller) {
 
     function Attributes(element) {
       this.$$element = element;
@@ -214,7 +214,7 @@ function $CompileProvider($provide) {
       });
 
       //! note linkNodes is $compileNodes and idx
-      function compositeLinkFn(scope, linkNodes) {
+      var compositeLinkFn = function(scope, linkNodes) {
 
         var stableNodeList = [];
         _.forEach(linksFns, function (linkFn) {
@@ -226,17 +226,18 @@ function $CompileProvider($provide) {
 
           var node = stableNodeList[linkFn.idx];
 
-          if(linkFn.nodeLinkFn) {
+          if(linkFn.nodeLinkFn) {   // consider <div><div my-directive></div></div>
             if(linkFn.nodeLinkFn.scope) {
               scope = scope.$new();
               $(node).data('$scope', scope);
             }
             linkFn.nodeLinkFn(linkFn.childLinkFn, scope, node);
           } else {
-            linkFn.childLinkFn(scope, node.childNodes);
+            linkFn.childLinkFn(scope, node.childNodes);  //its again compositeLinkFn
           }
         });
-      }
+      };
+
       return compositeLinkFn;
     }
 
@@ -384,7 +385,9 @@ function $CompileProvider($provide) {
 
       var newScopeDirective, newIsolateScopeDirective;
 
-      function addLinkFns(preLinkFn, postLinkFn, attrStart, attrEnd, isolateScope) {
+      var controllerDirectives;
+
+      var addLinkFns = function(preLinkFn, postLinkFn, attrStart, attrEnd, isolateScope) {
         if(preLinkFn) {
           if(attrStart) {
             preLinkFn = groupElementLinkFnWrapper(preLinkFn, attrStart, attrEnd);
@@ -400,7 +403,7 @@ function $CompileProvider($provide) {
           postLinkFn.isolateScope = isolateScope;
           postLinkFns.push(postLinkFn);
         }
-      }
+      };
 
       _.forEach(directives, function (directive) {
 
@@ -410,6 +413,11 @@ function $CompileProvider($provide) {
         }
         if(directive.priority < terminalPriority) {
           return false;
+        }
+
+        if(directive.controller) {
+          controllerDirectives = controllerDirectives || {};
+          controllerDirectives[directive.name] = directive;
         }
 
         if(directive.scope) {
@@ -444,9 +452,18 @@ function $CompileProvider($provide) {
       });
 
       //! can be multiple directive on a single node, here is only single node
-      function nodeLinkFn(childLinkFn, scope, linkNode) {
+      var nodeLinkFn = function(childLinkFn, scope, linkNode) {
         var $element = $(linkNode);
 
+        if(controllerDirectives) {
+          _.forEach(controllerDirectives, function (directive) {
+            var controllerName = directive.controller;
+            if(controllerName === '@') {
+              controllerName = attrs[directive.name];
+            }
+            $controller(controllerName);
+          });
+        }
         var isolateScope;
         if(newIsolateScopeDirective) {
           isolateScope = scope.$new(true);
@@ -470,7 +487,7 @@ function $CompileProvider($provide) {
                 var parentGet = $parse(attrs[attrName]);
                 var lastValue = isolateScope[scopeName] = parentGet(scope);
 
-                var parentValueWatch = function () {
+                var parentValueWatch = function () {  //! we are digesting from root scope
                   var parentValue = parentGet(scope);
                   if(isolateScope[scopeName] !== parentValue) {
                     if(parentValue !== lastValue) {
@@ -519,7 +536,7 @@ function $CompileProvider($provide) {
         _.forEachRight(postLinkFns, function (linkFn) {
           linkFn(linkFn.isolateScope ? isolateScope : scope, $element, attrs);
         });
-      }
+      };
 
       nodeLinkFn.terminal = terminal;
       nodeLinkFn.scope = newScopeDirective && newScopeDirective.scope;
